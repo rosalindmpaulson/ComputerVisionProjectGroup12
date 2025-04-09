@@ -24,7 +24,7 @@ import random
 import gdown
 
 def download_model():
-    url = 'https://drive.google.com/uc?id=19fmnaizUBpxF92vZGOV_mnjsPnAmi4JJ'
+    url = 'https://drive.google.com/uc?id=1vUCcpUNfjyvRLupWX5JJiWA68ru3_Dxo'
     output = 'model_weights.weights.h5'
     if not os.path.exists(output):
         gdown.download(url, output, quiet=False)
