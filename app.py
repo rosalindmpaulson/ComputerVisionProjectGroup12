@@ -21,6 +21,14 @@ import tensorflow.image as tfimg
 import math
 import random
 
+import gdown
+
+def download_model():
+    url = 'https://drive.google.com/uc?id=19fmnaizUBpxF92vZGOV_mnjsPnAmi4JJ'
+    output = 'model_weights.weights.h5'
+    if not os.path.exists(output):
+        gdown.download(url, output, quiet=False)
+
 class RescuenetDataset(Sequence):
     def __init__(self, image_ids, image_dir, mask_dir, batch_size=8, img_size=(256, 256)):
         self.image_ids = image_ids  # e.g. ['11078', '11079']
