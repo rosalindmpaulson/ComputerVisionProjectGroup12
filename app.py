@@ -357,7 +357,6 @@ model_choice = st.radio(
 st.markdown(f"### 📌 Selected Model: `{model_choice}`")
 
 if model_choice == 'UNet':
-    @st.cache_resource
     model = load_model(r'unet_rescuenet.h5')
 elif model_choice == 'Attention_UNet':
     model_weights = 'model_weights.weights.h5'
