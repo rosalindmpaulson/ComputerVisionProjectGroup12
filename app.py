@@ -312,7 +312,9 @@ class UNetSegmentModelOld:
                         activation='softmax')(x)
         self.model = Model(inputs=input, outputs=output)
 
+@st.cache_resource
 def unetweightsreload(model_weights):
+    download_model()
     img_size = (480, 360)
     unetObj = UNetSegmentModelOld()
     unetObj.create_model([64, 128, 256, 512], (img_size[1], img_size[0], 3))
@@ -355,6 +357,7 @@ model_choice = st.radio(
 st.markdown(f"### 📌 Selected Model: `{model_choice}`")
 
 if model_choice == 'UNet':
+    @st.cache_resource
     model = load_model(r'unet_rescuenet.h5')
 elif model_choice == 'Attention_UNet':
     model_weights = 'model_weights.weights.h5'
