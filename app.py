@@ -6,8 +6,8 @@ from PIL import Image
 import time
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-import segmentation_models as sm
 from tensorflow.keras.utils import Sequence
+import segmentation_models as sm
 import matplotlib.pyplot as plt
 import io
 from sklearn.metrics import precision_score, recall_score, f1_score
@@ -21,14 +21,14 @@ from tensorflow.keras.optimizers.schedules import ExponentialDecay
 import tensorflow.image as tfimg
 import math
 import random
-# import gdown
-# import os
 
-# def download_model():
-#     url = 'https://drive.google.com/uc?id=1vUCcpUNfjyvRLupWX5JJiWA68ru3_Dxo'
-#     output = 'unet_rescuenet.h5'
-#     if not os.path.exists(output):
-#         gdown.download(url, output, quiet=False)
+import gdown
+
+def download_model(link,name):
+    url = link
+    output = name
+    if not os.path.exists(output):
+        gdown.download(url, output, quiet=False)
 
 class RescuenetDataset(Sequence):
     def __init__(self, image_dir, mask_dir, image_ids, batch_size=8, img_size=(256, 256), num_classes=12):
@@ -310,7 +310,10 @@ class UNetSegmentModelOld:
                         activation='softmax')(x)
         self.model = Model(inputs=input, outputs=output)
 
+@st.cache_resource
 def unetweightsreload(model_weights):
+    link = 'https://drive.google.com/uc?id=1vUCcpUNfjyvRLupWX5JJiWA68ru3_Dxo'
+    download_model(link,'model_weights.weights.h5')
     img_size = (480, 360)
     unetObj = UNetSegmentModelOld()
     unetObj.create_model([64, 128, 256, 512], (img_size[1], img_size[0], 3))
@@ -358,7 +361,9 @@ elif model_choice == 'PSPNet':
     # Set framework for segmentation_models
     sm.set_framework('tf.keras')
     sm.framework()
-    model = load_model(r'pspnet_rescuenet.h5',custom_objects={'iou_score': sm.metrics.iou_score})
+    link='https://drive.google.com/uc?id=1h6F7Poose1uijNZLJJH0rHErD43sGyb0'
+    download_model(link,'pspnet_rescuenet.h5')
+    model = load_model('pspnet_rescuenet.h5',custom_objects={'iou_score': sm.metrics.iou_score})
 elif model_choice == 'Attention_UNet':
     model_weights = 'model_weights.weights.h5'
 
@@ -463,7 +468,7 @@ if selected_files:
                 axs[2].imshow(pred, cmap=cmap, norm=norm)
                 axs[2].set_title("Predicted Mask")
                 axs[2].axis('off')
-            
+
             else:
                 # Process predicted mask
                 if isinstance(pred, np.ndarray):
@@ -478,23 +483,6 @@ if selected_files:
 
             plt.tight_layout()
             
-                # # Plot using matplotlib with colormaps
-                # fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-
-                # axs[0].imshow(orig_image)
-                # axs[0].set_title("Original Image")
-                # axs[0].axis('off')
-
-                # axs[1].imshow(mask, cmap='nipy_spectral')
-                # axs[1].set_title("Ground Truth Mask")
-                # axs[1].axis('off')
-
-                # axs[2].imshow(pred, cmap='nipy_spectral')
-                # axs[2].set_title("Predicted Mask")
-                # axs[2].axis('off')
-
-                # plt.tight_layout()
-
             # Convert matplotlib figure to image buffer for Streamlit
             buf = io.BytesIO()
             plt.savefig(buf, format="png")
@@ -552,4 +540,3 @@ if selected_files:
 
 else:
     st.info("Please select at least one image to run prediction.")
-
