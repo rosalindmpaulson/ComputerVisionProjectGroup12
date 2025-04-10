@@ -5,3 +5,4 @@ tensorflow==2.19.0
 scikit-learn==1.6.1
 matplotlib==3.10.1
 gdown
+git+https://github.com/qubvel/segmentation_models.git
