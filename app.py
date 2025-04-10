@@ -7,6 +7,7 @@ import time
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import Sequence
+import segmentation_models as sm
 import matplotlib.pyplot as plt
 import io
 from sklearn.metrics import precision_score, recall_score, f1_score
@@ -23,22 +24,23 @@ import random
 
 import gdown
 
-def download_model():
-    url = 'https://drive.google.com/uc?id=1vUCcpUNfjyvRLupWX5JJiWA68ru3_Dxo'
-    output = 'model_weights.weights.h5'
+def download_model(link,name):
+    url = link
+    output = name
     if not os.path.exists(output):
         gdown.download(url, output, quiet=False)
 
 class RescuenetDataset(Sequence):
-    def __init__(self, image_ids, image_dir, mask_dir, batch_size=8, img_size=(256, 256)):
-        self.image_ids = image_ids  # e.g. ['11078', '11079']
+    def __init__(self, image_dir, mask_dir, image_ids, batch_size=8, img_size=(256, 256), num_classes=12):
         self.image_dir = image_dir
         self.mask_dir = mask_dir
+        self.image_ids = image_ids
         self.batch_size = batch_size
         self.img_size = img_size
+        self.num_classes = num_classes
 
     def __len__(self):
-        return len(self.image_ids) // self.batch_size
+        return int(np.ceil(len(self.image_ids) / self.batch_size))
 
     def __getitem__(self, idx):
         batch_ids = self.image_ids[idx * self.batch_size:(idx + 1) * self.batch_size]
@@ -49,25 +51,21 @@ class RescuenetDataset(Sequence):
             mask_path = os.path.join(self.mask_dir, f"{img_id}_lab.png")
 
             img = cv2.imread(img_path)
-            if img is None:
-                print(f"[WARN] Failed to load image: {img_path}")
-                continue
-
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-            if mask is None:
-                print(f"[WARN] Failed to load mask: {mask_path}")
+
+            if img is None or mask is None:
                 continue
 
             img = cv2.resize(img, self.img_size)
-            mask = cv2.resize(mask, self.img_size)
+            mask = cv2.resize(mask, self.img_size, interpolation=cv2.INTER_NEAREST)
 
-            img = img / 255.0
-            mask = np.expand_dims(mask / 255.0, axis=-1)
+            img = img.astype(np.float32) / 255.0
+            mask = tf.keras.utils.to_categorical(mask, num_classes=self.num_classes)
 
             images.append(img)
             masks.append(mask)
 
-        return np.array(images), np.array(masks)
+        return np.array(images, dtype=np.float32), np.array(masks, dtype=np.float32)
 
 # Image folder
 IMAGE_FOLDER = "images/test-org-img"  # Change to your image folder path
@@ -314,7 +312,8 @@ class UNetSegmentModelOld:
 
 @st.cache_resource
 def unetweightsreload(model_weights):
-    download_model()
+    link = 'https://drive.google.com/uc?id=1vUCcpUNfjyvRLupWX5JJiWA68ru3_Dxo'
+    download_model(link,'model_weights.weights.h5')
     img_size = (480, 360)
     unetObj = UNetSegmentModelOld()
     unetObj.create_model([64, 128, 256, 512], (img_size[1], img_size[0], 3))
@@ -349,7 +348,7 @@ st.title("Disaster-Resilient Military Base Damage Assessment with Autonomous Obj
 # Model selection
 model_choice = st.radio(
     "Choose the model to use:",
-    ('UNet', 'Attention_UNet'),
+    ('UNet', 'Attention_UNet','PSPNet'),
     index=0,
     horizontal=True
 )
@@ -358,6 +357,13 @@ st.markdown(f"### 📌 Selected Model: `{model_choice}`")
 
 if model_choice == 'UNet':
     model = load_model(r'unet_rescuenet.h5')
+elif model_choice == 'PSPNet':
+    # Set framework for segmentation_models
+    sm.set_framework('tf.keras')
+    sm.framework()
+    link='https://drive.google.com/uc?id=1h6F7Poose1uijNZLJJH0rHErD43sGyb0'
+    download_model(link,'pspnet_rescuenet.h5')
+    model = load_model('pspnet_rescuenet.h5',custom_objects={'iou_score': sm.metrics.iou_score})
 elif model_choice == 'Attention_UNet':
     model_weights = 'model_weights.weights.h5'
 
@@ -377,6 +383,11 @@ if selected_files:
             img_size=(480,360)
             test_flow = DirectoryFlow(IMAGE_FOLDER, 'images/test-label-img', 1, img_size)
             (img, label) = test_flow._get_image_batch(img_ids=[file.split('.')[0]])
+        elif model_choice=='PSPNet':
+            image_dir=IMAGE_FOLDER
+            mask_dir="images/test-label-img"
+            image_ids=[file.split('.')[0]]
+            img = RescuenetDataset(image_dir,mask_dir,image_ids,img_size=(384,384))
         else:
             img = show_image(path,(256, 256))
         images_to_predict.append(img)
@@ -388,6 +399,11 @@ if selected_files:
         if model_choice=='Attention_UNet':
             model = unetweightsreload(model_weights)
             predictions = [model.predict(img) for img in images_to_predict]
+        elif model_choice=='PSPNet':
+            predictions=[]
+            for img in images_to_predict:
+                sample_img, sample_mask = img[0]
+                predictions.append(model.predict(np.expand_dims(sample_img[0], axis=0)))
         else:
             predictions = model.predict(np.array(images_to_predict))
         elapsed_time = time.time() - start_time
@@ -443,7 +459,7 @@ if selected_files:
             axs[1].set_title("Ground Truth Mask")
             axs[1].axis('off')
             
-            if model_choice=='Attention_UNet':
+            if model_choice=='Attention_UNet' or model_choice=='PSPNet':
                 # Process predicted mask
                 if isinstance(pred, np.ndarray):
                     pred = pred.squeeze()
@@ -467,23 +483,6 @@ if selected_files:
 
             plt.tight_layout()
             
-                # # Plot using matplotlib with colormaps
-                # fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-
-                # axs[0].imshow(orig_image)
-                # axs[0].set_title("Original Image")
-                # axs[0].axis('off')
-
-                # axs[1].imshow(mask, cmap='nipy_spectral')
-                # axs[1].set_title("Ground Truth Mask")
-                # axs[1].axis('off')
-
-                # axs[2].imshow(pred, cmap='nipy_spectral')
-                # axs[2].set_title("Predicted Mask")
-                # axs[2].axis('off')
-
-                # plt.tight_layout()
-
             # Convert matplotlib figure to image buffer for Streamlit
             buf = io.BytesIO()
             plt.savefig(buf, format="png")
@@ -541,4 +540,3 @@ if selected_files:
 
 else:
     st.info("Please select at least one image to run prediction.")
-
