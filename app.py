@@ -343,7 +343,7 @@ def preprocess_image(selected_files):
     test_gen = RescuenetDataset(test_ids, 'images/test-org-img', 'images/test-label-img')
     return test_gen
 
-st.title("Disaster-Resilient Military Base Damage Assessment with Autonomous Object Tracking")
+st.title("Disaster-Resilient Military Base Damage Assessment with Semantic-Segmentation")
 
 # Model selection
 model_choice = st.radio(
